@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>时间戳转换工具</title>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <script src="../js/tailwind.min.js"></script>
+    <style>
+        body { background: #f4f4f9; font-family: 'Inter', sans-serif; }
+        .container { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+        input, .btn { border-radius: 6px; border: 1px solid #e5e7eb; font-size: 1em; padding: 0.6em 1em; margin-bottom: 1em; }
+        .btn { background: #6366f1; color: #fff; border: none; font-weight: 600; margin-left: 1em; }
+        .btn:hover { background: #4338ca; }
+        .result { background: #f1f5f9; border-radius: 6px; padding: 1em; margin-top: 1em; font-family: 'Fira Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+        .error { color: #ef4444; font-weight: bold; }
+        .row { display: flex; align-items: center; margin-bottom: 1em; }
+        .row label { min-width: 100px; }
+        .row input { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">时间戳转换工具</h2>
+        <div class="row">
+            <label>Unix 时间戳</label>
+            <input id="tsInput" placeholder="如 1713369600" />
+            <button class="btn" onclick="ts2date()">转日期</button>
+        </div>
+        <div class="row">
+            <label>日期时间</label>
+            <input id="dateInput" placeholder="如 2025-04-18 00:00:00" />
+            <button class="btn" onclick="date2ts()">转时间戳</button>
+        </div>
+        <div id="tsResult" class="result"></div>
+    </div>
+    <script>
+        function ts2date() {
+            const ts = document.getElementById('tsInput').value.trim();
+            const resultDiv = document.getElementById('tsResult');
+            if(!/^\d+$/.test(ts)) return resultDiv.textContent = '请输入有效的 Unix 时间戳';
+            try {
+                const date = new Date(parseInt(ts)*1000);
+                resultDiv.textContent = date.toLocaleString();
+            } catch(e) {
+                resultDiv.textContent = '转换失败: ' + e.message;
+            }
+        }
+        function date2ts() {
+            const dateStr = document.getElementById('dateInput').value.trim().replace(/-/g,'/');
+            const resultDiv = document.getElementById('tsResult');
+            try {
+                const ts = Date.parse(dateStr);
+                if(isNaN(ts)) return resultDiv.textContent = '请输入有效的日期时间';
+                resultDiv.textContent = Math.floor(ts/1000);
+            } catch(e) {
+                resultDiv.textContent = '转换失败: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

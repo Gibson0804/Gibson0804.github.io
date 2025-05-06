@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进制转换工具</title>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <script src="../js/tailwind.min.js"></script>
+    <style>
+        body { background: #f4f4f9; font-family: 'Inter', sans-serif; }
+        .container { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+        input, select, .btn { border-radius: 6px; border: 1px solid #e5e7eb; font-size: 1em; padding: 0.6em 1em; margin-bottom: 1em; }
+        .btn { background: #6366f1; color: #fff; border: none; font-weight: 600; margin-left: 1em; }
+        .btn:hover { background: #4338ca; }
+        .result { background: #f1f5f9; border-radius: 6px; padding: 1em; margin-top: 1em; font-family: 'Fira Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+        .error { color: #ef4444; font-weight: bold; }
+        .row { display: flex; align-items: center; margin-bottom: 1em; }
+        .row label { min-width: 80px; }
+        .row input, .row select { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">进制转换工具</h2>
+        <div class="row">
+            <label>原始数值</label>
+            <input id="baseInput" placeholder="如 1010" />
+            <select id="baseFrom">
+                <option value="2">二进制</option>
+                <option value="8">八进制</option>
+                <option value="10" selected>十进制</option>
+                <option value="16">十六进制</option>
+            </select>
+        </div>
+        <div class="row">
+            <label>目标进制</label>
+            <select id="baseTo">
+                <option value="2">二进制</option>
+                <option value="8">八进制</option>
+                <option value="10">十进制</option>
+                <option value="16" selected>十六进制</option>
+            </select>
+            <button class="btn" onclick="convertBase()">转换</button>
+        </div>
+        <div id="baseResult" class="result"></div>
+    </div>
+    <script>
+        function convertBase() {
+            const input = document.getElementById('baseInput').value.trim();
+            const from = parseInt(document.getElementById('baseFrom').value);
+            const to = parseInt(document.getElementById('baseTo').value);
+            const resultDiv = document.getElementById('baseResult');
+            try {
+                if(!input) throw new Error('请输入数值');
+                const num = parseInt(input, from);
+                if(isNaN(num)) throw new Error('原始数值格式有误');
+                resultDiv.textContent = num.toString(to);
+            } catch(e) {
+                resultDiv.textContent = '转换失败: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 转 HTML</title>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <script src="../js/tailwind.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { background: #f4f4f9; font-family: 'Inter', sans-serif; }
+        .container { max-width: 540px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+        textarea { width: 100%; height: 140px; border-radius: 6px; border: 1px solid #e5e7eb; padding: 0.8em; font-size: 1em; margin-bottom: 1em; }
+        .btn { background: #6366f1; color: #fff; border: none; border-radius: 6px; padding: 0.7em 1.4em; cursor: pointer; font-weight: 600; margin-right: 1em; }
+        .btn:hover { background: #4338ca; }
+        .result { background: #f1f5f9; border-radius: 6px; padding: 1em; margin-top: 1em; font-family: 'Fira Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+        .html-preview { background: #fff; border-radius: 6px; padding: 1em; margin-top: 1em; border: 1px solid #e5e7eb; }
+        .error { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">Markdown 转 HTML</h2>
+        <textarea id="mdInput" placeholder="输入 Markdown 内容..."></textarea>
+        <div>
+            <button class="btn" onclick="convertMd()">转换</button>
+        </div>
+        <div id="mdResult" class="result"></div>
+        <div id="htmlPreview" class="html-preview"></div>
+    </div>
+    <section aria-label="详细说明" class="mt-8" style="background:#fef9c3;padding:1.2em;border-radius:8px;color:#92400e;max-width:720px;margin:2em auto 0 auto;">
+        <h2 class="text-lg font-semibold mb-2">工具详细说明</h2>
+        <ul style="margin:0.5em 0 0 1.2em;list-style:disc inside;">
+            <li>本页面为<strong>Markdown 转 HTML</strong>工具，支持将 Markdown 文本一键转换为标准 HTML。</li>
+            <li>适用于文档编写、博客发布、技术分享、前端开发等多场景。</li>
+            <li>所有操作均在本地浏览器完成，数据不会上传服务器，保障隐私安全。</li>
+            <li>支持复制和下载转换结果，便于快速集成到项目或平台。</li>
+        </ul>
+        <div style="margin-top:1em;">
+        <b>常见问题：</b><br>
+        Q: 支持哪些 Markdown 语法？<br>
+        A: 支持标准 Markdown 语法及部分扩展语法。<br>
+        Q: 转换结果可以直接用在网页吗？<br>
+        A: 可以，结果为标准 HTML，可直接嵌入页面。<br>
+        </div>
+    </section>
+    <script>
+        function convertMd() {
+            const input = document.getElementById('mdInput').value;
+            const resultDiv = document.getElementById('mdResult');
+            const htmlDiv = document.getElementById('htmlPreview');
+            try {
+                const html = marked.parse(input);
+                resultDiv.textContent = html;
+                htmlDiv.innerHTML = html;
+                resultDiv.classList.remove('error');
+            } catch(e) {
+                resultDiv.textContent = '转换失败: ' + e.message;
+                resultDiv.classList.add('error');
+                htmlDiv.innerHTML = '';
+            }
+        }
+    </script>
+</body>
+</html>

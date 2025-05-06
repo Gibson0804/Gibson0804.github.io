@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>颜色值转换工具</title>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <script src="../js/tailwind.min.js"></script>
+    <style>
+        body { background: #f4f4f9; font-family: 'Inter', sans-serif; }
+        .container { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+        input, .btn { border-radius: 6px; border: 1px solid #e5e7eb; font-size: 1em; padding: 0.6em 1em; margin-bottom: 1em; }
+        .btn { background: #6366f1; color: #fff; border: none; font-weight: 600; margin-left: 1em; }
+        .btn:hover { background: #4338ca; }
+        .result { background: #f1f5f9; border-radius: 6px; padding: 1em; margin-top: 1em; font-family: 'Fira Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+        .error { color: #ef4444; font-weight: bold; }
+        .row { display: flex; align-items: center; margin-bottom: 1em; }
+        .row label { min-width: 80px; }
+        .row input { flex: 1; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">颜色值转换工具</h2>
+        <div class="row">
+            <label>HEX</label>
+            <input id="hexInput" placeholder="#AABBCC" />
+            <button class="btn" onclick="hex2rgb()">转 RGB</button>
+        </div>
+        <div class="row">
+            <label>RGB</label>
+            <input id="rgbInput" placeholder="255,255,255" />
+            <button class="btn" onclick="rgb2hex()">转 HEX</button>
+        </div>
+        <div id="colorResult" class="result"></div>
+    </div>
+    <script>
+        function hex2rgb() {
+            const hex = document.getElementById('hexInput').value.trim();
+            const resultDiv = document.getElementById('colorResult');
+            const match = hex.match(/^#?([\da-fA-F]{2})([\da-fA-F]{2})([\da-fA-F]{2})$/);
+            if(!match) return resultDiv.textContent = '请输入合法的 HEX 颜色值';
+            const rgb = `${parseInt(match[1],16)},${parseInt(match[2],16)},${parseInt(match[3],16)}`;
+            resultDiv.textContent = 'RGB: ' + rgb;
+        }
+        function rgb2hex() {
+            const rgb = document.getElementById('rgbInput').value.trim().split(',');
+            const resultDiv = document.getElementById('colorResult');
+            if(rgb.length!==3) return resultDiv.textContent = '请输入合法的 RGB，如 255,255,255';
+            const hex = '#' + rgb.map(x=>{
+                const n = parseInt(x.trim());
+                if(isNaN(n)||n<0||n>255) throw new Error('RGB 范围应为 0-255');
+                return n.toString(16).padStart(2,'0');
+            }).join('');
+            resultDiv.textContent = 'HEX: ' + hex;
+        }
+    </script>
+</body>
+</html>

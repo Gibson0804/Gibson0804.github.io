@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片切片与 GIF 生成</title>
+    <script src="js/tailwind.min.js"></script>
+    <link href="css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            width: 90%;
+            max-width: 800px;
+            display: grid;
+        }
+
+        input[type="number"],
+        input[type="file"] {
+            width: 200px;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4299e1;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #3182ce;
+        }
+
+        #sliceResult {
+            margin-top: 1rem;
+            display: flex;
+            flex-wrap: wrap;
+        }
+
+        .slice-image {
+            max-width: 100px;
+            margin: 0.5rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .slice-container {
+            display: flex;
+            flex-wrap: wrap;
+            flex-direction: row;
+            margin-top: 1rem;
+            gap: 0.5rem;
+        }
+        .slice-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0.5rem;
+        }
+
+        #previewCanvas {
+            border: 1px solid #e2e8f0;
+            margin-bottom: 1rem;
+        }
+
+        #downloadSelectedButton,#generateGifButton,#mergeSelectedButton {
+            margin: 0 10px;
+        }
+        
+        .action-buttons {
+            display: none;
+            justify-content: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1 class="text-2xl font-bold mb-4">图片切片与 GIF 生成</h1>
+        <input type="file" id="imageInput" accept="image/*">
+        <canvas id="previewCanvas"></canvas>
+        <div class="flex space-x-4 mb-4">
+            <label>横向数量</label>
+            <input type="number" id="horizontalSlices" placeholder="水平分割数" min="1" value="2">
+            <label>纵向数量</label>
+            <input type="number" id="verticalSlices" placeholder="垂直分割数" min="1" value="2">
+        </div>
+        <div class="flex space-x-4 mb-4">
+            <label>上偏移</label>
+            <input type="number" id="topOffset" placeholder="上边距" min="0" value="0">
+            <label>下偏移</label>
+            <input type="number" id="bottomOffset" placeholder="下边距" min="0" value="0">
+        </div>
+        <div class="flex space-x-4 mb-4">
+            <label>左偏移</label>
+            <input type="number" id="leftOffset" placeholder="左边距" min="0" value="0">
+            <label>右偏移</label>
+            <input type="number" id="rightOffset" placeholder="右边距" min="0" value="0">
+        </div>
+        <button id="sliceButton">切片图片</button>
+        <div id="sliceResult"></div>
+        <div class="action-buttons">
+            <button id="downloadSelectedButton">下载选中图片</button>
+            <button id="mergeSelectedButton">合并选中图片</button>
+            <button id="generateGifButton" disabled>生成 GIF</button>
+        </div>
+        <div id="gifGenerationStatus" class="mt-2 text-sm text-gray-600"></div>
+        <div class="w-full bg-gray-200 rounded-full h-2.5 mb-4 mt-2">
+            <div id="gifProgress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+        </div>
+        <div id="gifPreviewContainer" class="mt-4 hidden">
+            <img id="gifPreview" class="mx-auto max-w-full" />
+            <button id="downloadGifButton" class="mt-2 bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded" style="display: none;">下载 GIF</button>
+        </div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const sliceButton = document.getElementById('sliceButton');
+        const generateGifButton = document.getElementById('generateGifButton');
+        const sliceResult = document.getElementById('sliceResult');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctx = previewCanvas.getContext('2d');
+        let slices = [];
+        let img;
+
+        imageInput.addEventListener('change', async () => {
+            const file = imageInput.files[0];
+            if (!file) return;
+
+            img = new Image();
+            img.src = URL.createObjectURL(file);
+            await new Promise(resolve => img.onload = resolve);
+        
+            // 设置画布的显示尺寸
+            previewCanvas.style.width = '300px';
+            previewCanvas.style.height = '300px';
+            // 设置画布的实际尺寸
+            previewCanvas.width = 300;
+            previewCanvas.height = 300;
+            ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+        });
+
+        const drawGrid = () => {
+            if (!img) return;
+            const horizontalSlices = parseInt(document.getElementById('horizontalSlices').value);
+            const verticalSlices = parseInt(document.getElementById('verticalSlices').value);
+            const topOffset = parseInt(document.getElementById('topOffset').value);
+            const bottomOffset = parseInt(document.getElementById('bottomOffset').value);
+            const leftOffset = parseInt(document.getElementById('leftOffset').value);
+            const rightOffset = parseInt(document.getElementById('rightOffset').value);
+
+            const sliceWidth = img.width / horizontalSlices;
+            const sliceHeight = img.height / verticalSlices;
+
+            ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            // 修改为按预览画布尺寸绘制图片
+            ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+        
+            // 绘制红色分割线
+            ctx.strokeStyle = 'red';
+            ctx.lineWidth = 2;
+        
+            // 绘制水平辅助线
+            for (let y = 1; y < verticalSlices; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * (previewCanvas.height / verticalSlices));
+                ctx.lineTo(previewCanvas.width, y * (previewCanvas.height / verticalSlices));
+                ctx.stroke();
+            }
+        
+            // 绘制垂直辅助线
+            for (let x = 1; x < horizontalSlices; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * (previewCanvas.width / horizontalSlices), 0);
+                ctx.lineTo(x * (previewCanvas.width / horizontalSlices), previewCanvas.height);
+                ctx.stroke();
+            }
+            
+            // 绘制黄色偏移边界线
+            ctx.strokeStyle = 'yellow';
+            ctx.lineWidth = 2;
+            
+            // 计算缩放比例
+            const scaleX = previewCanvas.width / img.width;
+            const scaleY = previewCanvas.height / img.height;
+            
+            // 绘制上偏移线
+            ctx.beginPath();
+            ctx.moveTo(0, topOffset * scaleY);
+            ctx.lineTo(previewCanvas.width, topOffset * scaleY);
+            ctx.stroke();
+            
+            // 绘制下偏移线
+            ctx.beginPath();
+            ctx.moveTo(0, previewCanvas.height - bottomOffset * scaleY);
+            ctx.lineTo(previewCanvas.width, previewCanvas.height - bottomOffset * scaleY);
+            ctx.stroke();
+            
+            // 绘制左偏移线
+            ctx.beginPath();
+            ctx.moveTo(leftOffset * scaleX, 0);
+            ctx.lineTo(leftOffset * scaleX, previewCanvas.height);
+            ctx.stroke();
+            
+            // 绘制右偏移线
+            ctx.beginPath();
+            ctx.moveTo(previewCanvas.width - rightOffset * scaleX, 0);
+            ctx.lineTo(previewCanvas.width - rightOffset * scaleX, previewCanvas.height);
+            ctx.stroke();
+        };
+
+        document.getElementById('horizontalSlices').addEventListener('input', drawGrid);
+        document.getElementById('verticalSlices').addEventListener('input', drawGrid);
+        document.getElementById('topOffset').addEventListener('input', drawGrid);
+        document.getElementById('bottomOffset').addEventListener('input', drawGrid);
+        document.getElementById('leftOffset').addEventListener('input', drawGrid);
+        document.getElementById('rightOffset').addEventListener('input', drawGrid);
+
+        sliceButton.addEventListener('click', async () => {
+            if (!img) return;
+            
+            // 显示功能按钮
+            document.querySelector('.action-buttons').style.display = 'flex';
+
+            const horizontalSlices = parseInt(document.getElementById('horizontalSlices').value);
+            const verticalSlices = parseInt(document.getElementById('verticalSlices').value);
+            const topOffset = parseInt(document.getElementById('topOffset').value);
+            const bottomOffset = parseInt(document.getElementById('bottomOffset').value);
+            const leftOffset = parseInt(document.getElementById('leftOffset').value);
+            const rightOffset = parseInt(document.getElementById('rightOffset').value);
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = img.width - leftOffset - rightOffset;
+            canvas.height = img.height - topOffset - bottomOffset;
+            ctx.drawImage(img, leftOffset, topOffset, canvas.width, canvas.height, 0, 0, canvas.width, canvas.height);
+
+            const sliceWidth = canvas.width / horizontalSlices;
+            const sliceHeight = canvas.height / verticalSlices;
+
+            slices = [];
+            sliceResult.innerHTML = '';
+
+            for (let y = 0; y < verticalSlices; y++) {
+                for (let x = 0; x < horizontalSlices; x++) {
+                    const sliceCanvas = document.createElement('canvas');
+                    const sliceCtx = sliceCanvas.getContext('2d');
+                    sliceCanvas.width = sliceWidth;
+                    sliceCanvas.height = sliceHeight;
+                    sliceCtx.drawImage(canvas, x * sliceWidth, y * sliceHeight, sliceWidth, sliceHeight, 0, 0, sliceWidth, sliceHeight);
+
+                    const sliceDataUrl = sliceCanvas.toDataURL('image/png');
+                    slices.push(sliceDataUrl);
+
+                    const sliceItem = document.createElement('div');
+                    sliceItem.classList.add('slice-item');
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = true;
+                    checkbox.dataset.index = slices.length;
+                    
+                    const imgElement = document.createElement('img');
+                    imgElement.src = sliceDataUrl;
+                    imgElement.classList.add('slice-image');
+                    imgElement.addEventListener('click', () => {
+                        checkbox.checked = !checkbox.checked;
+                    });
+                    
+                    sliceItem.appendChild(checkbox);
+                    sliceItem.appendChild(imgElement);
+                    sliceResult.appendChild(sliceItem);
+                }
+            }
+
+            generateGifButton.disabled = false;
+        });
+
+        const gifGenerationStatus = document.getElementById('gifGenerationStatus');
+        const gifProgress = document.getElementById('gifProgress');
+
+        document.getElementById('downloadSelectedButton').addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.slice-item input[type="checkbox"]');
+            const selectedSlices = [];
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    selectedSlices.push(slices[index]);
+                }
+            });
+
+            if (selectedSlices.length === 0) {
+                alert('请至少选择一张图片');
+                return;
+            }
+
+            // 逐个下载选中的图片
+            selectedSlices.forEach((slice, i) => {
+                const link = document.createElement('a');
+                link.href = slice;
+                link.download = `selected_slice_${i}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+
+        document.getElementById('mergeSelectedButton').addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('.slice-item input[type="checkbox"]');
+            const selectedSlices = [];
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    selectedSlices.push(slices[index]);
+                }
+            });
+
+            if (selectedSlices.length === 0) {
+                alert('请至少选择一张图片');
+                return;
+            }
+
+            // 创建合并画布
+            const mergedCanvas = document.createElement('canvas');
+            const mergedCtx = mergedCanvas.getContext('2d');
+            
+            // 加载所有选中的图片
+            const images = selectedSlices.map(src => {
+                const img = new Image();
+                img.src = src;
+                return img;
+            });
+            
+            // 等待所有图片加载完成
+            Promise.all(images.map(img => {
+                return new Promise(resolve => {
+                    img.onload = resolve;
+                });
+            })).then(() => {
+                // 计算合并后画布的宽度和高度
+                const totalWidth = images.reduce((sum, img) => sum + img.width, 0);
+                const maxHeight = Math.max(...images.map(img => img.height));
+                
+                mergedCanvas.width = totalWidth;
+                mergedCanvas.height = maxHeight;
+                
+                // 横向拼接图片
+                let currentX = 0;
+                images.forEach(img => {
+                    mergedCtx.drawImage(img, currentX, 0);
+                    currentX += img.width;
+                });
+                
+                // 显示合并后的图片
+                const mergedPreview = document.createElement('div');
+                mergedPreview.style.margin = '20px 0';
+                mergedPreview.style.textAlign = 'center';
+                
+                const mergedImg = document.createElement('img');
+                mergedImg.src = mergedCanvas.toDataURL('image/png');
+                mergedImg.style.maxWidth = '100%';
+                mergedImg.style.border = '1px solid #e2e8f0';
+                mergedImg.style.borderRadius = '4px';
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = '下载合并图片';
+                downloadBtn.style.margin = '10px 0';
+                downloadBtn.addEventListener('click', () => {
+                    const link = document.createElement('a');
+                    link.href = mergedCanvas.toDataURL('image/png');
+                    link.download = 'merged_image.png';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                });
+                
+                mergedPreview.appendChild(mergedImg);
+                mergedPreview.appendChild(document.createElement('br'));
+                mergedPreview.appendChild(downloadBtn);
+                
+                // 移除之前的预览（如果有）
+                const oldPreview = document.getElementById('mergedPreview');
+                if (oldPreview) {
+                    oldPreview.remove();
+                }
+                
+                mergedPreview.id = 'mergedPreview';
+                sliceResult.parentNode.insertBefore(mergedPreview, sliceResult.nextSibling);
+            });
+        });
+
+        generateGifButton.addEventListener('click', () => {
+            // 禁用按钮并显示开始提示
+            generateGifButton.disabled = true;
+            gifGenerationStatus.textContent = '正在生成 GIF，请稍候...';
+            gifProgress.style.width = '0%';
+
+            const gif = new GIF({
+                workers: 2,
+                quality: 10,
+                workerScript: 'js/gif.worker.js'
+            });
+
+            // Only process selected slices
+            const checkboxes = document.querySelectorAll('.slice-item input[type="checkbox"]');
+            checkboxes.forEach((checkbox, index) => {
+                if (checkbox.checked) {
+                    const img = new Image();
+                    img.src = slices[index];
+                    gif.addFrame(img, { delay: 200 });
+                }
+            });
+
+            gif.on('progress', function (progress) {
+                // 更新进度条并强制重绘
+                gifProgress.style.width = `${(progress * 100).toFixed(1)}%`;
+                gifProgress.parentElement.style.display = 'block';
+                setTimeout(() => {}, 0); // 让出主线程控制权
+            });
+
+            gif.on('abort', function() {
+                gifGenerationStatus.textContent = '生成已中止';
+                generateGifButton.disabled = false;
+            });
+
+            gif.on('error', function(e) {
+                console.error(e);
+                gifGenerationStatus.textContent = '生成出错: ' + e;
+                generateGifButton.disabled = false;
+            });
+
+            gif.on('finished', function(blob) {
+                // 显示预览
+                const gifPreview = document.getElementById('gifPreview');
+                const gifPreviewContainer = document.getElementById('gifPreviewContainer');
+                const downloadGifButton = document.getElementById('downloadGifButton');
+                
+                gifPreview.src = URL.createObjectURL(blob);
+                gifPreviewContainer.classList.remove('hidden');
+                // 只在GIF生成完成后显示下载按钮
+                downloadGifButton.style.display = 'block';
+                
+                // 添加下载按钮事件
+                downloadGifButton.onclick = function() {
+                    const link = document.createElement('a');
+                    link.href = gifPreview.src;
+                    link.download = 'generated_gif.gif';
+                    link.click();
+                };
+                
+
+                
+                // 显示完成提示
+                gifGenerationStatus.textContent = 'GIF 生成完成！';
+                // 启用按钮
+                generateGifButton.disabled = false;
+            });
+
+            gif.on('error', function (error) {
+                // 显示错误提示
+                gifGenerationStatus.textContent = `生成 GIF 时出错: ${error.message}`;
+                // 启用按钮
+                generateGifButton.disabled = false;
+            });
+
+            gif.render();
+        });
+    </script>
+    <div id="gifResult" style="margin-top:1em;"></div>
+    <section aria-label="详细说明" class="mt-8" style="background:#fef9c3;padding:1.2em;border-radius:8px;color:#92400e;max-width:720px;margin:2em auto 0 auto;">
+        <h2 class="text-lg font-semibold mb-2">工具详细说明</h2>
+        <ul style="margin:0.5em 0 0 1.2em;list-style:disc inside;">
+            <li>本页面为<strong>图片切片与 GIF 生成</strong>工具，支持自定义切片行数、列数、间距，并可一键生成 GIF 动图。</li>
+            <li>适用于图片分割、动图制作、素材批量导出、设计辅助等多种场景。</li>
+            <li>所有操作均在本地浏览器完成，图片数据不会上传服务器，保障隐私安全。</li>
+            <li>支持批量下载切片图片和生成的 GIF 动图。</li>
+        </ul>
+        <div style="margin-top:1em;">
+        <b>常见问题：</b><br>
+        Q: 支持哪些图片格式？<br>
+        A: 支持常见的 JPG、PNG、GIF、WebP 等格式。<br>
+        Q: 切片后图片会压缩吗？<br>
+        A: 切片结果为原图分割，未做额外压缩处理。<br>
+        Q: GIF 生成慢怎么办？<br>
+        A: 可适当减少切片数量或图片尺寸。<br>
+        </div>
+    </section>
+    <script src="js/gif.js"></script>
+</body>
+
+</html>

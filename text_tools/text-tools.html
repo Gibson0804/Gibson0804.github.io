@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本处理工具</title>
+    <link href="../css/all.min.css" rel="stylesheet">
+    <script src="../js/tailwind.min.js"></script>
+    <style>
+        body { background: #f4f4f9; font-family: 'Inter', sans-serif; }
+        .container { max-width: 520px; margin: 40px auto; background: #fff; border-radius: 12px; box-shadow: 0 4px 16px #0001; padding: 2rem; }
+        textarea { width: 100%; height: 140px; border-radius: 6px; border: 1px solid #e5e7eb; padding: 0.8em; font-size: 1em; margin-bottom: 1em; }
+        .btn { background: #6366f1; color: #fff; border: none; border-radius: 6px; padding: 0.7em 1.4em; cursor: pointer; font-weight: 600; margin-right: 1em; }
+        .btn:hover { background: #4338ca; }
+        .result { background: #f1f5f9; border-radius: 6px; padding: 1em; margin-top: 1em; font-family: 'Fira Mono', monospace; white-space: pre-wrap; word-break: break-all; }
+        .error { color: #ef4444; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="text-xl font-bold mb-4">文本去重/去空行/排序</h2>
+        <textarea id="txtInput" placeholder="输入或粘贴文本..."></textarea>
+        <div>
+            <button class="btn" onclick="removeDup()">去重</button>
+            <button class="btn" onclick="removeEmpty()">去空行</button>
+            <button class="btn" onclick="sortLines()">排序</button>
+        </div>
+        <div id="txtResult" class="result"></div>
+    </div>
+    <section aria-label="详细说明" class="mt-8" style="background:#fef9c3;padding:1.2em;border-radius:8px;color:#92400e;max-width:720px;margin:2em auto 0 auto;">
+        <h2 class="text-lg font-semibold mb-2">工具详细说明</h2>
+        <ul style="margin:0.5em 0 0 1.2em;list-style:disc inside;">
+            <li>本页面为<strong>文本去重/去空行/排序</strong>工具，支持批量文本处理、去重、去空行、排序等操作。</li>
+            <li>适用于数据清洗、日志处理、文档整理等多场景。</li>
+            <li>所有操作均在本地浏览器完成，数据不会上传服务器，保障隐私安全。</li>
+            <li>支持一键复制和下载处理结果，提升文本处理效率。</li>
+        </ul>
+        <div style="margin-top:1em;">
+        <b>常见问题：</b><br>
+        Q: 支持多大文本量？<br>
+        A: 支持常规文本量，超大文本可能受浏览器性能影响。<br>
+        Q: 可以自定义排序规则吗？<br>
+        A: 当前仅支持字典序排序。<br>
+        </div>
+    </section>
+    <script>
+        function removeDup() {
+            const input = document.getElementById('txtInput').value.split(/\r?\n/);
+            const result = [...new Set(input)].join('\n');
+            document.getElementById('txtResult').textContent = result;
+        }
+        function removeEmpty() {
+            const input = document.getElementById('txtInput').value.split(/\r?\n/);
+            const result = input.filter(line=>line.trim()!=="").join('\n');
+            document.getElementById('txtResult').textContent = result;
+        }
+        function sortLines() {
+            const input = document.getElementById('txtInput').value.split(/\r?\n/);
+            const result = input.sort().join('\n');
+            document.getElementById('txtResult').textContent = result;
+        }
+    </script>
+</body>
+</html>

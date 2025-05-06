@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片转像素图片</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f9f9f9; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); padding: 32px; }
+        h2 { text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; }
+        input[type="file"] { display: block; }
+        input[type="number"] { width: 100px; padding: 4px; }
+        button { background: #2196f3; color: #fff; border: none; border-radius: 4px; padding: 10px 20px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #aaa; }
+        canvas { display: block; margin: 20px auto; border: 1px solid #ddd; }
+        .download-link { display: block; margin: 16px auto; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container" style="max-width:900px;">
+        <h2>图片转像素图片</h2>
+        <div style="display:flex;align-items:flex-start;gap:32px;">
+            <div style="flex:1;min-width:220px;">
+                <div class="form-group">
+                    <label for="imageInput">上传图片</label>
+                    <input type="file" id="imageInput" accept="image/*">
+                </div>
+                <div class="form-group">
+                    <label>选择像素画方案</label>
+            <select id="pixelPlan">
+                <option value="44x66_4">44 × 66（4mm 方格，A4最大填充）</option>
+                <option value="17x26_5">17 × 26（5mm 方格，A4更大像素块）</option>
+            </select>
+        </div>
+        <div style="color:#666;font-size:0.98em;margin-bottom:16px;">
+            说明：A4纸尺寸210×297mm，1毫米≈3.78屏幕像素。导出图片为A4比例，适合打印。
+        </div>
+        </div>
+        <div style="flex:1;min-width:220px;display:flex;align-items:center;justify-content:center;">
+            <img id="previewImg" src="" alt="原图预览" style="max-width:260px;max-height:260px;border:3px solid #f44;border-radius:10px;box-sizing:border-box;background:#fff;object-fit:contain;display:block;" />
+        </div>
+        </div>
+
+        <button id="pixelateBtn" disabled>生成像素图片</button>
+        <canvas id="canvas" width="0" height="0" style="display:none;"></canvas>
+        <a id="downloadLink" class="download-link" style="display:none;" download="pixel-image.png">下载像素图片</a>
+    </div>
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const pixelPlan = document.getElementById('pixelPlan');
+        const pixelateBtn = document.getElementById('pixelateBtn');
+        const canvas = document.getElementById('canvas');
+        const downloadLink = document.getElementById('downloadLink');
+        let img = new window.Image();
+        let imgLoaded = false;
+        const previewImg = document.getElementById('previewImg');
+
+        // 水彩笔色板
+        const PALETTES = {
+            '16': [
+                [0,0,0],[128,128,128],[192,192,192],[255,255,255], // 黑灰银白
+                [255,0,0],[128,0,0],[255,165,0],[255,255,0], // 红棕橙黄
+                [0,255,0],[0,128,0],[0,255,255],[0,128,128], // 绿青
+                [0,0,255],[0,0,128],[255,0,255],[128,0,128]  // 蓝紫粉
+            ],
+            '24': [
+                [0,0,0],[128,128,128],[192,192,192],[255,255,255],
+                [255,0,0],[128,0,0],[255,165,0],[255,255,0],
+                [0,255,0],[0,128,0],[0,255,255],[0,128,128],
+                [0,0,255],[0,0,128],[255,0,255],[128,0,128],
+                [210,105,30],[255,228,181],[255,192,203],[255,215,0],
+                [173,216,230],[144,238,144],[255,69,0],[112,128,144]
+            ],
+            '64': [
+                [0,0,0],[85,85,85],[170,170,170],[255,255,255],
+                [255,0,0],[128,0,0],[255,165,0],[255,255,0],[128,128,0],[0,255,0],[0,128,0],[0,255,255],[0,128,128],[0,0,255],[0,0,128],[255,0,255],[128,0,128],
+                [210,105,30],[255,228,181],[255,192,203],[255,215,0],[173,216,230],[144,238,144],[255,69,0],[112,128,144],
+                [255,182,193],[255,20,147],[255,105,180],[199,21,133],[218,112,214],[186,85,211],[148,0,211],[138,43,226],
+                [75,0,130],[123,104,238],[72,61,139],[106,90,205],[65,105,225],[0,191,255],[30,144,255],[100,149,237],[70,130,180],[176,224,230],[240,248,255],[224,255,255],[0,206,209],[64,224,208],[127,255,212],[0,250,154],[50,205,50],[152,251,152],[143,188,143],[60,179,113],[46,139,87],[34,139,34],[107,142,35],[189,183,107],[255,255,224],[255,250,205],[250,250,210],[255,239,213],[255,228,196],[255,218,185],[255,222,173],[245,222,179]
+            ]
+        };
+
+        // 毫米转像素，假设 1mm = 3.78px（96DPI）
+        function mm2px(mm) { return Math.round(mm * 3.78); }
+
+        // 方案参数
+        const plans = {
+            '44x66_4': { cols: 44, rows: 66, size_mm: 4 },
+            '17x26_5': { cols: 17, rows: 26, size_mm: 5 }
+        };
+
+        // 计算最近色板色
+        function findNearestColor(r, g, b, palette) {
+            let minDist = Infinity, best = palette[0];
+            for (let i = 0; i < palette.length; i++) {
+                const [pr, pg, pb] = palette[i];
+                const dist = (r-pr)*(r-pr)+(g-pg)*(g-pg)+(b-pb)*(b-pb);
+                if (dist < minDist) { minDist = dist; best = palette[i]; }
+            }
+            return best;
+        }
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                img.src = ev.target.result;
+                previewImg.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        img.onload = function() {
+            imgLoaded = true;
+            pixelateBtn.disabled = false;
+            downloadLink.style.display = 'none';
+            canvas.style.display = 'block';
+            // 预览时自适应A4比例
+            updateCanvasPreview();
+        };
+
+        function updateCanvasPreview() {
+            const plan = plans[pixelPlan.value];
+            const pixelSizePx = mm2px(plan.size_mm);
+            canvas.width = plan.cols * pixelSizePx;
+            canvas.height = plan.rows * pixelSizePx;
+            // 居中缩放原图到目标区域
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const scale = Math.min(
+                (plan.cols * pixelSizePx) / img.width,
+                (plan.rows * pixelSizePx) / img.height
+            );
+            const drawW = img.width * scale;
+            const drawH = img.height * scale;
+            const offsetX = ((plan.cols * pixelSizePx) - drawW) / 2;
+            const offsetY = ((plan.rows * pixelSizePx) - drawH) / 2;
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+        }
+
+        pixelPlan.addEventListener('change', function() {
+            if (imgLoaded) updateCanvasPreview();
+        });
+
+        pixelateBtn.addEventListener('click', function() {
+            if (!imgLoaded) return;
+            const plan = plans[pixelPlan.value];
+            const pixelSizePx = mm2px(plan.size_mm);
+            const palette = null; // 默认不限色板
+            canvas.width = plan.cols * pixelSizePx;
+            canvas.height = plan.rows * pixelSizePx;
+            // 缩放图片填满A4像素格区域
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const scale = Math.min(
+                (plan.cols * pixelSizePx) / img.width,
+                (plan.rows * pixelSizePx) / img.height
+            );
+            const drawW = img.width * scale;
+            const drawH = img.height * scale;
+            const offsetX = ((plan.cols * pixelSizePx) - drawW) / 2;
+            const offsetY = ((plan.rows * pixelSizePx) - drawH) / 2;
+            ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
+            // 像素化+色板映射
+            // 1. 获取整张图片像素数据
+            const fullImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            if (palette) {
+                // 2. 应用 Floyd-Steinberg 抖动算法
+                applyFloydSteinbergDither(fullImageData, palette, canvas.width, canvas.height);
+                ctx.putImageData(fullImageData, 0, 0);
+            }
+            // 3. 再按像素格统计主色（与原来一致）
+            const blockColors = [];
+            for (let y = 0; y < plan.rows; y++) {
+                blockColors[y] = [];
+                for (let x = 0; x < plan.cols; x++) {
+                    const sx = x * pixelSizePx;
+                    const sy = y * pixelSizePx;
+                    const imageData = ctx.getImageData(sx, sy, pixelSizePx, pixelSizePx);
+                    const data = imageData.data;
+                    // 判断透明像素占比
+                    let transparentCount = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        if (data[i+3] < 128) transparentCount++;
+                    }
+                    if (transparentCount > data.length / 8) { // 超过1/8为透明，直接白色
+                        blockColors[y][x] = [255,255,255,255];
+                        continue;
+                    }
+                    // 统计色板映射后出现频率
+                    const colorMap = {};
+                    let maxKey = '', maxCount = 0;
+                    for (let i = 0; i < data.length; i += 4) {
+                        let nr = data[i], ng = data[i+1], nb = data[i+2];
+                        const key = nr + ',' + ng + ',' + nb;
+                        colorMap[key] = (colorMap[key] || 0) + 1;
+                        if (colorMap[key] > maxCount) {
+                            maxCount = colorMap[key];
+                            maxKey = key;
+                        }
+                    }
+                    const [nr, ng, nb] = maxKey.split(',').map(Number);
+                    blockColors[y][x] = [nr, ng, nb, 255];
+                }
+            }
+            // 邻域平滑：孤立色块用周围主色替换
+            function getNeighbors(y, x) {
+                const n = [];
+                for (let dy = -1; dy <= 1; dy++) {
+                    for (let dx = -1; dx <= 1; dx++) {
+                        if (dy === 0 && dx === 0) continue;
+                        const ny = y + dy, nx = x + dx;
+                        if (ny >= 0 && ny < plan.rows && nx >= 0 && nx < plan.cols) {
+                            n.push(blockColors[ny][nx].join(','));
+                        }
+                    }
+                }
+                return n;
+            }
+            // 拷贝一份做平滑
+            const smoothColors = blockColors.map(row => row.slice());
+            for (let y = 0; y < plan.rows; y++) {
+                for (let x = 0; x < plan.cols; x++) {
+                    const self = blockColors[y][x].join(',');
+                    const neighbors = getNeighbors(y, x);
+                    const freq = {};
+                    neighbors.forEach(c => { freq[c] = (freq[c]||0)+1; });
+                    // 超过一半邻居不同色时替换为邻居主色
+                    const entries = Object.entries(freq).sort((a,b)=>b[1]-a[1]);
+                    if (entries.length && entries[0][0] !== self && entries[0][1] >= 5) {
+                        smoothColors[y][x] = entries[0][0].split(',').map(Number).concat(255);
+                    }
+                }
+            }
+            // 绘制最终色块
+            for (let y = 0; y < plan.rows; y++) {
+                for (let x = 0; x < plan.cols; x++) {
+                    const [nr, ng, nb, na] = smoothColors[y][x];
+                    ctx.fillStyle = `rgba(${nr},${ng},${nb},${na/255})`;
+                    ctx.fillRect(x * pixelSizePx, y * pixelSizePx, pixelSizePx, pixelSizePx);
+                }
+            }
+            // --- 边缘检测并自动描边 ---
+            const edgeMap = sobelEdgeDetect(ctx, canvas.width, canvas.height);
+            for (let y = 0; y < plan.rows; y++) {
+                for (let x = 0; x < plan.cols; x++) {
+                    // 统计像素格内边缘强度
+                    let edgeSum = 0;
+                    for (let dy = 0; dy < pixelSizePx; dy++) {
+                        for (let dx = 0; dx < pixelSizePx; dx++) {
+                            const px = x * pixelSizePx + dx;
+                            const py = y * pixelSizePx + dy;
+                            if (px < canvas.width && py < canvas.height) {
+                                edgeSum += edgeMap[py * canvas.width + px];
+                            }
+                        }
+                    }
+                    const edgeAvg = edgeSum / (pixelSizePx * pixelSizePx);
+                    if (edgeAvg > 60) { // 阈值可调，越低越敏感
+                        ctx.strokeStyle = 'rgb(80,80,80)';
+                        ctx.lineWidth = 2;
+                        ctx.strokeRect(x * pixelSizePx + 1, y * pixelSizePx + 1, pixelSizePx - 2, pixelSizePx - 2);
+                    }
+                }
+            }
+            // 画网格线
+            ctx.save();
+            ctx.strokeStyle = '#bbb';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= plan.cols; x++) {
+                ctx.beginPath();
+                ctx.moveTo(x * pixelSizePx, 0);
+                ctx.lineTo(x * pixelSizePx, plan.rows * pixelSizePx);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= plan.rows; y++) {
+                ctx.beginPath();
+                ctx.moveTo(0, y * pixelSizePx);
+                ctx.lineTo(plan.cols * pixelSizePx, y * pixelSizePx);
+                ctx.stroke();
+            }
+            ctx.restore();
+            // 显示下载按钮
+            downloadLink.href = canvas.toDataURL('image/png');
+            downloadLink.style.display = 'block';
+        });
+    // --- Sobel边缘检测及灰度化函数 ---
+    function sobelEdgeDetect(ctx, width, height) {
+        // 获取灰度图
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        const gray = new Float32Array(width * height);
+        for (let i = 0; i < width * height; i++) {
+            const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+            gray[i] = 0.299*r + 0.587*g + 0.114*b;
+        }
+        // Sobel 卷积核
+        const gx = [-1,0,1,-2,0,2,-1,0,1];
+        const gy = [-1,-2,-1,0,0,0,1,2,1];
+        const edge = new Float32Array(width * height);
+        for (let y = 1; y < height-1; y++) {
+            for (let x = 1; x < width-1; x++) {
+                let sumX = 0, sumY = 0;
+                for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                        const val = gray[(y+ky)*width + (x+kx)];
+                        sumX += val * gx[(ky+1)*3 + (kx+1)];
+                        sumY += val * gy[(ky+1)*3 + (kx+1)];
+                    }
+                }
+                const idx = y*width + x;
+                edge[idx] = Math.sqrt(sumX*sumX + sumY*sumY);
+            }
+        }
+        // 归一化到0-255
+        let max = 0;
+        for (let i = 0; i < edge.length; i++) max = Math.max(max, edge[i]);
+        for (let i = 0; i < edge.length; i++) edge[i] = edge[i] / max * 255;
+        return edge;
+    }
+    </script>
+</body>
+</html>
